@@ -1,16 +1,11 @@
-import openai
-import turtle
-import time
-import clipboard
-import win32clipboard
+import tkinter, time, clipboard, win32clipboard, turtle, requests
 
-
-openai.api_key = 'ENTER API KEY'
+API_URL = "https://koulu-koe-ai-api.eetupetteri2010.workers.dev/use"
 
 showScreen = False
-ChatBox = turtle.Screen()
+ChatBox = turtle.Screen() ## CHANGE TURTLE FOR TKINTER
 ChatBox.setup(940, 150, starty=40)
-Questions = False
+token = None
 if showScreen:
     turtle.penup()
     turtle.goto(-450, 50)
@@ -19,22 +14,16 @@ else:
 messages = [ {"role": "system", "content": 
               "This is a test."} ]
 
-def submitCopy():
+def submitCopy(usingToken):
     ChatBox.bgcolor("green")
     time.sleep(0.1)
     ChatBox.bgcolor("white")
     win32clipboard.OpenClipboard()
     msg = win32clipboard.GetClipboardData()
     if msg:
-        messages.append(
-            {"role": "user", "content": msg},
-        )
-        chat = openai.ChatCompletion.create(
-            model="gpt-5.1", messages=messages
-        )
-    reply = chat.choices[0].message.content
+        response = requests.post(API_URL, json={"token": usingToken, "text": msg}).json()
+    reply = response["result"]
     try:
-        messages.append({"role": "assistant", "content": reply})
         win32clipboard.CloseClipboard()
         print(reply)
         clipboard.copy(reply)
@@ -66,12 +55,32 @@ def searchData():
     ChatBox.bgcolor("white")
     win32clipboard.CloseClipboard()
 
-def StartChatBox():
-    ChatBox.numinput(title="Chatbox Security", prompt="Enter token")
+def checkToken(checkingToken):
+    response = requests.post(
+        "https://koulu-koe-ai-api.eetupetteri2010.workers.dev/check",
+        json={"token": checkingToken}
+    ).json()
 
-StartChatBox()
+    if not response.get("valid"):
+        reason = response.get("reason", "unknown")
+        ChatBox.bgcolor("red")
+        print("Token invalid:", reason)
+        time.sleep(1)
+        raise SystemExit("Invalid token: " + reason)
+    
+    print("Token valid!")
+
+def StartChatBox():
+    tkn = ChatBox.textinput(title="Chatbox Security", prompt="Enter token")
+    if tkn != None:
+        checkToken(tkn)
+        return tkn
+    else:
+        raise
+
+token = StartChatBox()
 ChatBox.listen()
-ChatBox.onkeyrelease(submitCopy, "Tab" and "c")
+ChatBox.onkeyrelease(lambda: submitCopy(token), "Tab" and "c")
 ChatBox.onkeyrelease(searchData, "Tab" and "s")
 while True:
     ChatBox.update()
